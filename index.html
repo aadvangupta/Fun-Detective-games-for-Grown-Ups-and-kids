@@ -1,0 +1,425 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CIPHER // ZERO - Digital Heist</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+
+  :root {
+    --bg: #050805;
+    --term-green: #00ff41;
+    --term-dim: #008f11;
+    --alert-red: #ff2a2a;
+    --warn-amber: #ffb000;
+    --panel-bg: rgba(0, 20, 5, 0.85);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background-color: var(--bg);
+    color: var(--term-green);
+    font-family: 'Share Tech Mono', monospace;
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    text-shadow: 0 0 5px rgba(0, 255, 65, 0.5);
+  }
+
+  /* CRT Scanline Effect */
+  body::after {
+    content: " ";
+    display: block;
+    position: absolute;
+    top: 0; left: 0; bottom: 0; right: 0;
+    background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.35) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.04), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.04));
+    z-index: 999;
+    background-size: 100% 3px, 6px 100%;
+    pointer-events: none;
+  }
+
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 30px;
+    border-bottom: 2px solid var(--term-dim);
+    background: #020402;
+  }
+
+  .sys-title { font-size: 1.4rem; letter-spacing: 2px; }
+  .timer { font-size: 1.8rem; color: var(--alert-red); text-shadow: 0 0 10px var(--alert-red); font-weight: bold; }
+  .path-badge { border: 1px solid var(--warn-amber); color: var(--warn-amber); padding: 4px 10px; font-size: 0.9rem; }
+
+  main {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 1.2fr;
+    gap: 20px;
+    padding: 25px;
+    overflow-y: auto;
+  }
+
+  .panel {
+    border: 1px solid var(--term-dim);
+    background: var(--panel-bg);
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    box-shadow: inset 0 0 20px rgba(0, 255, 65, 0.1);
+  }
+
+  .panel-header {
+    border-bottom: 1px dashed var(--term-dim);
+    padding-bottom: 10px;
+    margin-bottom: 15px;
+    font-size: 1.1rem;
+    color: #fff;
+  }
+
+  #terminal-log {
+    flex: 1;
+    overflow-y: auto;
+    font-size: 0.95rem;
+    line-height: 1.5;
+    margin-bottom: 15px;
+  }
+
+  .log-entry { margin-bottom: 8px; }
+  .log-sys { color: #888; }
+  .log-err { color: var(--alert-red); }
+  .log-ok { color: #fff; background: var(--term-dim); padding: 2px 6px; display: inline-block; }
+
+  .input-area {
+    display: flex;
+    gap: 10px;
+  }
+
+  input[type="text"] {
+    flex: 1;
+    background: #000;
+    border: 1px solid var(--term-green);
+    color: var(--term-green);
+    font-family: inherit;
+    font-size: 1.1rem;
+    padding: 10px;
+    outline: none;
+  }
+
+  button {
+    background: var(--term-dim);
+    color: #fff;
+    border: 1px solid var(--term-green);
+    font-family: inherit;
+    font-size: 1rem;
+    padding: 10px 20px;
+    cursor: pointer;
+    text-transform: uppercase;
+  }
+
+  button:hover { background: var(--term-green); color: #000; }
+
+  /* Puzzle Visuals */
+  .clue-box {
+    background: #000;
+    border: 1px solid var(--term-dim);
+    padding: 15px;
+    margin: 15px 0;
+  }
+
+  table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.9rem; }
+  th, td { border: 1px solid var(--term-dim); padding: 8px; text-align: left; }
+  tr.clickable:hover { background: rgba(0, 255, 65, 0.2); cursor: pointer; }
+
+  /* Hidden Image Clue */
+  .blueprint-box {
+    position: relative;
+    width: 100%;
+    height: 180px;
+    border: 1px solid var(--term-green);
+    background: radial-gradient(circle, #061a09 0%, #000 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+  .hidden-code {
+    position: absolute;
+    bottom: 12px;
+    right: 18px;
+    color: #031205; /* Very faint, brightens on hover */
+    font-size: 1.2rem;
+    transition: color 0.3s;
+    user-select: none;
+  }
+  .blueprint-box:hover .hidden-code { color: var(--term-green); }
+
+  .choice-btn { display: block; width: 100%; margin: 10px 0; text-align: left; }
+  .node-btn { margin: 5px; }
+  .node-selected { background: var(--warn-amber); color: #000; border-color: #fff; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="sys-title">APEX_CORP // BREACH_TERMINAL</div>
+  <div class="path-badge" id="route-display">ROUTE: UNASSIGNED</div>
+  <div class="timer" id="timer">15:00</div>
+</header>
+
+<main>
+  <!-- Left Panel: System Logs & Command Line -->
+  <div class="panel">
+    <div class="panel-header">> SYSTEM_CONSOLE</div>
+    <div id="terminal-log"></div>
+    <div class="input-area" id="cli-controls">
+      <input type="text" id="cmd-input" placeholder="Enter decryption key or command..." autocomplete="off">
+      <button onclick="submitCommand()">EXECUTE</button>
+    </div>
+  </div>
+
+  <!-- Right Panel: Active Puzzle Interface -->
+  <div class="panel">
+    <div class="panel-header" id="puzzle-title">> LAYER 1: INITIAL ENCRYPTION</div>
+    <div id="puzzle-content"></div>
+  </div>
+</main>
+
+<script>
+  // CIPHER ZERO: 2 levels, each with a terminal challenge and several puzzles.
+  // The original terminal hints and command vocabulary are preserved.
+  const TOTAL_LEVELS = 2;
+  const PUZZLES_PER_LEVEL = 3;
+  let timeLeft = 900;
+  let currentStage = 1;
+  let currentPuzzleIndex = 0;
+  let gameActive = true;
+  let terminalCommandIndex = 0;
+  let terminalCommands = [];
+  let currentPuzzle = null;
+  let route = "MAINFRAME";
+  let collected = {};
+  const seenQuestions = new Set();
+
+  const stageNames = ["INITIAL ACCESS", "FINAL OVERRIDE"];
+  const commandVerbs = ["BOOT","SCAN","TRACE","PING","MAP","VERIFY","WAKE","SEARCH","DECODE","AUDIT","SYNC","UPLOAD","REVIEW","CONFIRM","OPEN","PATCH","TEST","LINK","SECURE"];
+  const commandHints = {
+    BOOT:"This is what you do when you start a computer.",
+    SCAN:"Use this to look carefully for something nearby.",
+    TRACE:"Use this to follow where a signal came from.",
+    PING:"A short signal used to check if another device responds.",
+    MAP:"This helps you plan or see a route.",
+    VERIFY:"Use this when you want to make sure something is correct.",
+    WAKE:"Do this to a system that has gone to sleep.",
+    SEARCH:"Do this when you are trying to find something.",
+    DECODE:"This helps turn a secret message into something readable.",
+    AUDIT:"Carefully check records, accounts, or activity.",
+    SYNC:"Make two devices or systems match each other.",
+    UPLOAD:"Send a file from your device to another computer.",
+    REVIEW:"Look over something again before deciding.",
+    CONFIRM:"Give a final yes when something is correct.",
+    OPEN:"The opposite of close; allow something to be entered.",
+    PATCH:"Use this to fix a small software problem.",
+    TEST:"Try something to see whether it works.",
+    LINK:"Join two things so they connect.",
+    SECURE:"Protect something so it stays safe."
+  };
+
+  const timerEl = document.getElementById('timer');
+  const timerInterval = setInterval(() => {
+    if (!gameActive) return;
+    timeLeft--;
+    timerEl.textContent = `${Math.floor(timeLeft/60).toString().padStart(2,'0')}:${(timeLeft%60).toString().padStart(2,'0')}`;
+    if (timeLeft <= 0) { clearInterval(timerInterval); endGame(false); }
+  }, 1000);
+
+  function log(msg, type="") {
+    const box=document.getElementById('terminal-log'), div=document.createElement('div');
+    div.className=`log-entry ${type}`;
+    div.textContent=`> ${msg}`;
+    box.appendChild(div);
+    box.scrollTop=box.scrollHeight;
+  }
+
+  document.getElementById('cmd-input').addEventListener('keypress',e=>{
+    if(e.key==='Enter') submitCommand();
+  });
+
+  function uniqueItem(key, factory) {
+    let item, signature, attempts=0;
+    do {
+      item=factory();
+      signature=key+'|'+item.id;
+      attempts++;
+    } while(seenQuestions.has(signature) && attempts<500);
+    seenQuestions.add(signature);
+    return item;
+  }
+
+  function newTerminal(stage) {
+    const seq = uniqueItem(`terminal-${stage}`, () => {
+      const pool=[...commandVerbs], chosen=[];
+      while(chosen.length<3) chosen.push(pool.splice(Math.floor(Math.random()*pool.length),1)[0]);
+      return {id:chosen.join("-"), commands:chosen};
+    }).commands;
+
+    terminalCommands=seq;
+    terminalCommandIndex=0;
+    const hintList=seq.map((cmd,i)=>`${i+1}. ${commandHints[cmd]}`).join('<br>');
+    const mission = stage===1
+      ? "Get the basic system ready, inspect it, and make sure it is working."
+      : "Complete the final checks, connect the system, and protect the result.";
+
+    document.getElementById('puzzle-title').textContent=`> LEVEL ${stage}: ${stageNames[stage-1]}`;
+    document.getElementById('puzzle-content').innerHTML=
+      `<p><strong>TERMINAL CHALLENGE:</strong> Read each hint and type the command that matches it. Enter the commands in order.</p>
+       <div class="clue-box"><strong>MISSION:</strong> ${mission}<br><br><strong>HINTS (FOLLOW FROM 1 TO 3):</strong><br>${hintList}</div>
+       <p>There are 3 commands. The hints explain what each command does, but do not show the command names.</p>
+       <p id="terminal-progress">COMMAND PROGRESS: 0 / 3</p>`;
+  }
+
+  function makePuzzle(stage, index) {
+    return uniqueItem(`puzzle-${stage}-${index}`, () => {
+      // Level 1 restores the intercepted cipher and transaction investigation,
+      // then adds a simple number-pattern puzzle.
+      if (stage===1 && index===0) {
+        const words=["GHOST","VAULT","LASER","NEXUS","ROBOT","CRYPT","DELTA","ORBIT","PIXEL","RADAR"];
+        const word=words[Math.floor(Math.random()*words.length)];
+        const shift=3;
+        const cipher=word.split("").map(ch=>String.fromCharCode((ch.charCodeAt(0)-65+shift)%26+65)).join("");
+        return {id:`cipher-${word}`,kind:"text",prompt:`DECODE INTERCEPTED SIGNAL: <strong>${cipher}</strong><br>Each letter was shifted FORWARD by 3. Shift it BACK by 3 to reveal the word.`,answer:word,success:"CIPHER BROKEN. SIGNAL DECODED."};
+      }
+
+      if (stage===1 && index===1) {
+        const badId=8800+Math.floor(Math.random()*900);
+        const good1=badId+1, good2=badId+2;
+        const badAmount=6000+Math.floor(Math.random()*4000);
+        const rows=[
+          {id:good1,time:"10:15",amount:1200},
+          {id:badId,time:"03:44",amount:badAmount},
+          {id:good2,time:"14:20",amount:2100}
+        ];
+        return {
+          id:`tx-${badId}-${badAmount}`,kind:"choice",
+          prompt:`<strong>INVESTIGATION:</strong> Legitimate transfers must be under $5,000 and happen between 09:00 and 17:00. Which transaction is suspicious?<br>
+            <table><tr><th>TX_ID</th><th>TIME</th><th>AMOUNT</th></tr>
+            ${rows.map(r=>`<tr><td>#${r.id}</td><td>${r.time}</td><td>$${r.amount.toLocaleString("en-US")}</td></tr>`).join("")}</table>
+            Type the suspicious transaction ID with #.`,
+          answer:`#${badId}`,success:"FRAUDULENT TRANSACTION ISOLATED."
+        };
+      }
+
+      if (stage===1 && index===2) {
+        const n=Math.floor(Math.random()*8)+2;
+        return {id:`pattern-${n}`,kind:"text",prompt:`PATTERN CHECK:  ${n}, ${n+3}, ${n+6}, ${n+9}, ?<br>What number comes next?`,answer:String(n+12),success:"PATTERN VERIFIED."};
+      }
+
+      // Level 2 restores the hidden clue, admin-password riddle and final node selection.
+      if (stage===2 && index===0) {
+        const codes=["SECTOR-9","ORION-4","NOVA-7","VECTOR-3","PHOENIX-8","ECHO-6"];
+        const code=codes[Math.floor(Math.random()*codes.length)];
+        return {id:`hidden-${code}`,kind:"text",prompt:`THERMAL SCAN: A hidden frequency is visible in the scan.<div class="blueprint-box"><span>[ THERMAL SCAN // HOVER TO CALIBRATE ]</span><div class="hidden-code">${code}</div></div>Move your cursor over the scan, then type the revealed code.`,answer:code,success:"HIDDEN FREQUENCY CONFIRMED."};
+      }
+
+      if (stage===2 && index===1) {
+        const riddles=[
+          {id:"rex1969",prompt:`ADMIN NOTE: "My password is my dog's name (REX) followed by the year Apollo 11 landed on the moon." Enter the password with no spaces.`,answer:"REX1969"},
+          {id:"blue6",prompt:`ENGINEER NOTE: "My password is the color of the sky (BLUE) followed by the number of sides on a hexagon." Enter the password with no spaces.`,answer:"BLUE6"},
+          {id:"cat2020",prompt:`SECURITY NOTE: "My password is the word CAT followed by the number of days in a week." Enter the password with no spaces.`,answer:"CAT7"},
+          {id:"red4",prompt:`ACCESS NOTE: "My password is the color of a stop sign (RED) followed by the number of seasons in a year." Enter the password with no spaces.`,answer:"RED4"}
+        ];
+        return riddles[Math.floor(Math.random()*riddles.length)];
+      }
+
+      const correct=route==="ALPHA"?"#8842":"PKT-779";
+      const distractors=route==="ALPHA"?["#7712","#9021","#6630"]:["PKT-402","PKT-818","PKT-246"];
+      const pool=[correct,...distractors].sort(()=>Math.random()-0.5);
+      return {id:`nodes-${route}-${pool.join("-")}`,kind:"choice",
+        prompt:`FINAL DATA-NODE CHECK: Select the authentic node you identified during the investigation. Type its ID exactly.<br><div class="clue-box">${pool.join(" &nbsp; | &nbsp; ")}</div>`,
+        answer:correct,success:"AUTHENTIC DATA NODE VERIFIED."};
+    });
+  }
+
+  function showPuzzle() {
+    currentPuzzle=makePuzzle(currentStage,currentPuzzleIndex);
+    document.getElementById('puzzle-title').textContent=`> LEVEL ${currentStage}: ${stageNames[currentStage-1]} // PUZZLE ${currentPuzzleIndex+1} OF ${PUZZLES_PER_LEVEL}`;
+    document.getElementById('puzzle-content').innerHTML=
+      `<p><strong>PUZZLE CHALLENGE:</strong> Solve the challenge below. A wrong answer gives you a different question of the same type.</p>
+       <div class="clue-box">${currentPuzzle.prompt}</div>
+       <p>Enter your answer in the SYSTEM_CONSOLE.</p>`;
+  }
+
+  function startLevel(stage) {
+    currentStage=stage;
+    currentPuzzleIndex=0;
+    document.getElementById('cli-controls').style.display='flex';
+    newTerminal(stage);
+  }
+
+  function submitCommand(){
+    const input=document.getElementById('cmd-input');
+    const val=input.value.trim().toUpperCase();
+    input.value='';
+    if(!val || !gameActive) return;
+    log(`USER_INPUT: ${val}`,'log-sys');
+
+    if(terminalCommandIndex<terminalCommands.length){
+      const expected=terminalCommands[terminalCommandIndex];
+      if(val===expected){
+        terminalCommandIndex++;
+        log('COMMAND ACCEPTED.','log-ok');
+        const prog=document.getElementById('terminal-progress');
+        if(prog) prog.textContent=`COMMAND PROGRESS: ${terminalCommandIndex} / 3`;
+        if(terminalCommandIndex===3){
+          log('TERMINAL COMPLETE. PUZZLE ACCESS GRANTED.','log-ok');
+          showPuzzle();
+        }
+      } else {
+        log('NOT QUITE. Read the hints again; a new set is ready.','log-err');
+        newTerminal(currentStage);
+      }
+      return;
+    }
+
+    if(val===currentPuzzle.answer.toUpperCase()){
+      log(currentPuzzle.success || 'PUZZLE SOLVED.','log-ok');
+      currentPuzzleIndex++;
+      if(currentPuzzleIndex>=PUZZLES_PER_LEVEL){
+        log(`LEVEL ${currentStage} CLEARED.`,'log-ok');
+        if(currentStage===TOTAL_LEVELS) endGame(true);
+        else startLevel(currentStage+1);
+      } else {
+        showPuzzle();
+      }
+    } else {
+      log('INCORRECT ANSWER. A new question has been loaded.','log-err');
+      showPuzzle();
+    }
+  }
+
+  function endGame(victory){
+    gameActive=false;
+    clearInterval(timerInterval);
+    document.getElementById('cli-controls').style.display='none';
+    const content=document.getElementById('puzzle-content');
+    if(victory){
+      log('UPLOAD COMPLETE. SYSTEM SECURED.','log-ok');
+      content.innerHTML=`<h2 style="color:#fff;margin-bottom:15px;">HEIST SUCCESSFUL</h2><p>You cleared both levels with <strong>${timerEl.textContent}</strong> remaining.</p><br><button onclick="location.reload()">PLAY AGAIN</button>`;
+    } else {
+      log('TRACE COMPLETE. CONNECTION TERMINATED.','log-err');
+      content.innerHTML=`<h2 style="color:var(--alert-red);margin-bottom:15px;">SYSTEM LOCKDOWN - TIME EXPIRED</h2><p>Security traced your signal before the upload finished.</p><br><button onclick="location.reload()">RETRY HEIST</button>`;
+    }
+  }
+
+  log('INITIALIZING SECURE SHELL...','log-sys');
+  log('WARNING: TRACE COUNTERMEASURES ACTIVE.','log-err');
+  log('10-MINUTE OPERATION. TWO LEVELS. TERMINAL + PUZZLES.','log-sys');
+  startLevel(1);
+</script>
+
+</body>
+</html>
